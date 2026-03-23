@@ -1,0 +1,24 @@
+node_modules/
+dist/
+
+# Environment files — never commit real secrets
+.env
+.env.*
+!.env.schema
+!.env.schema.example
+
+# 1Password session token
+.op-session
+
+# TypeScript incremental build
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
