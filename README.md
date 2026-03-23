@@ -1,23 +1,23 @@
 # nestjs-varlock-starter
 
-Minimal NestJS starter — Varlock replaces .env with 1Password vault-backed secrets and schema validation.
+Minimal NestJS starter. Varlock replaces `.env` files with 1Password vault-backed secrets and schema validation.
 
 ## Why
 
-- **AI tools read .env files** — Cursor, Copilot, and any tool with file system access can leak your secrets silently.
-- **No validation until runtime crash** — a missing or malformed variable only blows up in production, not at startup.
-- **Rotation requires SSH** — updating a secret means SSHing into every server and editing files by hand. Varlock pulls from 1Password on boot, so rotation is a vault update.
+- Cursor, GitHub Copilot, and Claude Code read every file in your working directory. Your `.env` is one of them.
+- A missing or malformed variable crashes at the first request that needs it, not at startup.
+- Rotating a secret means SSH access and editing files on every server. Varlock fetches from 1Password on boot, so rotation is a vault update.
 
-## Setup (5 steps)
+## Setup
 
 1. Install 1Password CLI:
    ```bash
    brew install --cask 1password-cli
    ```
 
-2. Clone the repo and install dependencies:
+2. Clone and install:
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/SebaBoler/nestjs-varlock-starter
    cd nestjs-varlock-starter
    npm install
    ```
@@ -27,42 +27,42 @@ Minimal NestJS starter — Varlock replaces .env with 1Password vault-backed sec
    op signin
    ```
 
-4. Copy the example schema and update the vault paths to match your 1Password setup:
+4. Copy the example schema and update the vault paths:
    ```bash
    cp .env.schema.example .env.schema
-   # edit .env.schema — replace YourVaultName and item names with real paths
+   # replace YourVaultName with your actual vault name and item paths
    ```
 
-   > ⚠️ Required: the app will not start until you replace `YourVaultName` with your actual 1Password vault name.
+   > ⚠️ Required: the app exits at startup until you set real vault paths in `.env.schema`.
 
-5. Start the app:
+5. Start:
    ```bash
    npm run start:dev
    ```
 
 ## How it works
 
-**Before (standard NestJS):**
+**Before:**
 ```typescript
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 ```
 
-**After (with Varlock):**
+**After:**
 ```typescript
-import 'varlock/auto-load'; // ← one line added, must be first
+import 'varlock/auto-load'; // must be first
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 ```
 
-That single import runs synchronously before NestJS boots. It reads `.env.schema`, fetches every `op://` reference from 1Password, validates types and required fields, then writes everything into `process.env`. By the time `NestFactory.create()` runs, `process.env` is fully populated. `ConfigService.getOrThrow()` keeps working with no changes.
+That import runs synchronously before NestJS boots. It reads `.env.schema`, fetches every `op://` reference from 1Password, validates types and required fields, then writes everything into `process.env`. Varlock finishes before `NestFactory.create()` runs. `ConfigService.getOrThrow()` continues to work unchanged.
 
-Note: `@nestjs/platform-express` is the HTTP adapter required by NestFactory — do not remove it.
+`@nestjs/platform-express` is the HTTP adapter NestFactory requires. Keep it in dependencies.
 
 ## Integration paths
 
-- **Development**: `import 'varlock/auto-load'` in `main.ts` — uses your local `op` CLI session.
-- **Production containers**: `varlock run -- node dist/main.js` — remove the import entirely, zero runtime dependency on Varlock in the built artifact.
+- **Development**: add `import 'varlock/auto-load'` as the first line of `main.ts`. Uses your local `op` CLI session.
+- **Production containers**: run `varlock run -- node dist/main.js`. Remove the import from `main.ts`. The built artifact has no runtime Varlock dependency.
 
 ## .env.schema syntax
 
@@ -71,28 +71,27 @@ Note: `@nestjs/platform-express` is the HTTP adapter required by NestFactory —
 # @initOp(token=$OP_TOKEN, allowAppAuth=forEnv(dev))
 OP_TOKEN=
 
-# @required means Varlock will throw at startup if the value is missing or empty
-# @sensitive means the value is never logged
-# @type=string enforces the type after fetching from the vault
+# @required — Varlock exits at startup if the value is missing or empty
+# @sensitive — the value never appears in logs
+# @type=string — validated after fetching from the vault
 # @required @sensitive @type=string
 JWT_SECRET=op(op://YourVaultName/JWT/secret)
 
 # @startsWith validates the value format before the app starts
-# @required @sensitive @type=string @startsWith=postgresql://
+# @required @sensitive @type=string(startsWith=postgresql://)
 DATABASE_URL=op(op://YourVaultName/Database/url)
 
-# @default means the variable is optional — falls back to 3000 if not set
+# @default makes the variable optional. Falls back to 3000 if not set.
 # @type=number @default=3000
 PORT=
 
-# @enum restricts accepted values
-# @type=string @default=development @enum=development,staging,production
+# @type=string @default=development
 NODE_ENV=
 ```
 
 ## Prevent secret leaks
 
-Install a pre-commit hook that scans staged files for secrets before they land in git:
+Scan staged files for secrets before every commit:
 
 ```bash
 varlock scan --install-hook
@@ -100,7 +99,7 @@ varlock scan --install-hook
 
 ## CI/CD (GitHub Actions)
 
-Pass the 1Password service account token as a repository secret. Varlock picks it up via `$OP_TOKEN` as declared in `.env.schema`.
+Store your 1Password service account token as `OP_TOKEN` in GitHub repository secrets. Varlock reads it from `.env.schema`.
 
 ```yaml
 jobs:
